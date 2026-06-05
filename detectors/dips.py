@@ -1,22 +1,21 @@
 from core.base_excercise import BaseExcercise
 
 
-class BicepCurlDetector(BaseExcercise):
+class DipDetector(BaseExcercise):
     """
-    Tracks bicep curls via elbow angle (shoulder-elbow-wrist).
+    Tracks dips via elbow angle (shoulder-elbow-wrist).
+    Also monitors shoulder depth (shoulder dropping below elbow line)
+    and body alignment (torso vertical).
 
-    Metrics:
-        elbow_angle       — current elbow flexion
-        shoulder_status   — shoulder staying fixed (not swinging forward)
-        swing_status      — torso lean / momentum cheat detection
-        extension_status  — full extension at the bottom
+    Landmarks:
+        11/12 SHOULDER  13/14 ELBOW  15/16 WRIST  23/24 HIP
     """
 
-    DOWN_THRESHOLD = 160   # arm almost fully extended
-    UP_THRESHOLD = 50      # fully curled
+    DOWN_THRESHOLD = 90    # elbow fully bent
+    UP_THRESHOLD = 160     # arms almost fully extended
     MIN_VISIBILITY = 0.6
 
-    SWING_THRESHOLD = 0.06  # max allowed shoulder x movement between frames
+    SHOULDER_DEPTH_THRESHOLD = 0.02   # shoulder y vs elbow y (norm coords)
 
     LEFT_SHOULDER = 11
     RIGHT_SHOULDER = 12
@@ -29,12 +28,10 @@ class BicepCurlDetector(BaseExcercise):
 
     def __init__(self):
         super().__init__()
-        self._prev_shoulder_x: float | None = None
 
     def reset(self):
         self.reps = 0
         self.stage = None
-        self._prev_shoulder_x = None
 
     def process(self, landmarks):
         left_vis = landmarks[self.LEFT_ELBOW].visibility
@@ -62,33 +59,37 @@ class BicepCurlDetector(BaseExcercise):
         )
 
         if key_visible:
-            if elbow_angle > self.DOWN_THRESHOLD:
+            if elbow_angle < self.DOWN_THRESHOLD:
                 self.stage = "down"
-            if elbow_angle < self.UP_THRESHOLD and self.stage == "down":
+            if elbow_angle >= self.UP_THRESHOLD and self.stage == "down":
                 self.stage = "up"
                 self.reps += 1
 
-        # Shoulder swing: shoulder x should not move much
-        shoulder_x = landmarks[shoulder_idx].x
-        if self._prev_shoulder_x is not None:
-            delta = abs(shoulder_x - self._prev_shoulder_x)
-            swing_status = "SWINGING" if delta > self.SWING_THRESHOLD else "CONTROLLED"
-        else:
-            swing_status = "N/A"
-        self._prev_shoulder_x = shoulder_x
-
-        # Shoulder stability: shoulder y should stay above elbow y
+        # Shoulder depth: shoulder should dip level with or below elbow
         shoulder_y = landmarks[shoulder_idx].y
         elbow_y = landmarks[elbow_idx].y
-        shoulder_status = "STABLE" if shoulder_y < elbow_y else "RAISED"
+        # In image coords y increases downward; shoulder dipping = shoulder_y > elbow_y
+        depth_diff = shoulder_y - elbow_y
+        if depth_diff >= -self.SHOULDER_DEPTH_THRESHOLD:
+            shoulder_depth_status = "GOOD DEPTH"
+        else:
+            shoulder_depth_status = "TOO SHALLOW"
 
-        # Extension: at the bottom, is the arm fully extended?
-        extension_status = "FULL EXTENSION" if elbow_angle >= self.DOWN_THRESHOLD else "PARTIAL"
+        # Body alignment: shoulder-hip should be roughly vertical (x close)
+        shoulder_x = landmarks[shoulder_idx].x
+        hip_x = landmarks[hip_idx].x
+        body_alignment = "STRAIGHT" if abs(shoulder_x - hip_x) < 0.08 else "LEANING"
+
+        # Shoulder status: are shoulders protracted/shrugged (shoulder y vs elbow y at top)
+        if self.stage == "up":
+            shoulder_status = "DEPRESSED" if shoulder_y < elbow_y else "SHRUGGED"
+        else:
+            shoulder_status = "N/A"
 
         return {
             "reps": self.reps,
             "elbow_angle": int(elbow_angle),
+            "shoulder_depth_status": shoulder_depth_status,
+            "body_alignment": body_alignment,
             "shoulder_status": shoulder_status,
-            "swing_status": swing_status,
-            "extension_status": extension_status,
         }
