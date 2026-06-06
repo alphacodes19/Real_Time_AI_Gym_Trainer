@@ -5,7 +5,8 @@ from services.state.sessions_defaults import initial_session_defaults
 from services.config.workout_config import EXCERCISE_OPTIONS
 from services.ui.style_loader import load_css, inject_local_font, inject_webrtc_styles
 from services.persistence.excercise_repository import init_db
-from streamlit_webrtc import webrtc_streamer
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
+from services.vision.excercise_video_processor import VideoProcessorClass
 
 def main():
     st.set_page_config(
@@ -202,7 +203,7 @@ def main():
         context = webrtc_streamer(
             key = "excercise-analysis",
             mode= WebRtcMode.SENDRECV,
-            video_processor_factory = None,
+            video_processor_factory = VideoProcessorClass,
             rtc_configuration = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
             media_stream_constraints={"video": True, "audio": False},
             async_processing = True,
