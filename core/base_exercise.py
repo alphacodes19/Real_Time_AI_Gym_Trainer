@@ -28,6 +28,23 @@ class BaseExercise(ABC):
 
         return (p.x, p.y)
 
+    def landmarks_visible(self, landmarks, *indices):
+        """True only if every listed landmark is being tracked reliably.
+
+        MediaPipe still returns coordinates for joints that are off-frame or
+        occluded -- they're estimates, not observations. Counting reps from
+        them produces phantom reps (e.g. a shoulder press 'counting' while
+        the elbows and wrists are out of shot). Detectors should gate their
+        rep logic on this.
+        """
+        threshold = getattr(self, "MIN_VISIBILITY", 0.6)
+
+        for idx in indices:
+            if landmarks[idx].visibility < threshold:
+                return False
+
+        return True
+
     @abstractmethod
     def process(self, landmarks):
         pass

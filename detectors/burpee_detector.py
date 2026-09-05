@@ -88,6 +88,11 @@ class BurpeeDetector(BaseExercise):
             phase = "TRANSITION"
 
         # ── rep counting: stand→plank→jump→stand ─────────────────────────────
+        if not self.landmarks_visible(landmarks, s_idx, h_idx, w_idx):
+            # Key joints are estimated rather than observed -- hold the phase
+            # rather than transitioning (and counting) on bad data.
+            phase = self.stage or phase
+
         if self.stage == "JUMP" and phase == "STAND":
             self.reps += 1
             self._rep_times.append(time.time())

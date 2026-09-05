@@ -69,25 +69,20 @@ def get_or_create_user(username: str) -> sqlite3.Row:
 
 
 def add_exercise(user_id, exercise_name, reps, sets, time):
+    """Insert one row per logged set.
+
+    This used to merge everything for the same exercise on the same day into
+    a single row, which meant per-set detail was lost forever. The Workout
+    History summary still groups by exercise + date (so it looks the same),
+    but the individual set rows are now preserved and can be broken out.
+    """
     conn = _get_connection()
 
     with conn:
-        existing = conn.execute("""
-            SELECT * FROM exercises 
-            WHERE user_id = ? AND exercise_name = ? AND DATE(created_at) = DATE('now')
-        """, (user_id, exercise_name)).fetchone()
-
-        if existing:
-            conn.execute("""
-                UPDATE exercises 
-                SET reps = reps + ?, sets = sets + ?, time = time + ?
-                WHERE id = ?
-            """, (reps, sets, time, existing['id']))
-        else:
-            conn.execute("""
-                INSERT INTO exercises (user_id, exercise_name, sets, reps, time)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user_id, exercise_name, sets, reps, time))
+        conn.execute("""
+            INSERT INTO exercises (user_id, exercise_name, sets, reps, time)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, exercise_name, sets, reps, time))
 
 
 def get_users_exercises(user_id):

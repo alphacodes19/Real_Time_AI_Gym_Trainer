@@ -58,7 +58,23 @@ def sync_metrics_update(context):
         st.session_state["_reps_floor"] = st.session_state.get("_reps_floor", 0) + prev_raw_reps
 
     st.session_state["_last_raw_detector_reps"] = reps
-    reps = st.session_state.get("_reps_floor", 0) + reps
+    raw_total = st.session_state.get("_reps_floor", 0) + reps
+
+    # ── Rest between sets ────────────────────────────────────────────────
+    # While resting, the camera is still running and the detector keeps
+    # counting movement. Those reps must not leak into the next set, so we
+    # absorb anything counted during the rest window: the displayed rep
+    # total is held flat until the rest period ends.
+    rest_until = st.session_state.get("rest_until", 0)
+    resting = time.time() < rest_until
+
+    if resting:
+        st.session_state["_reps_absorbed"] = raw_total - st.session_state.get("_reps_at_rest_start", 0)
+
+    st.session_state.resting = resting
+    st.session_state.rest_remaining = max(0, int(rest_until - time.time())) if resting else 0
+
+    reps = raw_total - st.session_state.get("_reps_absorbed", 0)
 
     st.session_state.reps = reps
 
@@ -93,6 +109,12 @@ def sync_metrics_update(context):
         now_ts = time.time()
         started_at = st.session_state.get("set_cycle_started_at", now_ts)
         time_taken = now_ts - started_at
+
+        # If the start timestamp was never initialised it sits at 0, which
+        # would record a "set duration" of ~7 billion seconds (time since
+        # the epoch). Treat anything implausible as an unknown duration.
+        if started_at <= 0 or time_taken < 0 or time_taken > 24 * 3600:
+            time_taken = 0.0
         user_id = st.session_state.get("user_id", 0)
 
         # Mark this threshold handled FIRST. If add_exercise() or the voice
@@ -102,8 +124,23 @@ def sync_metrics_update(context):
         st.session_state.set_cycle_started_at = now_ts
         st.session_state.last_saved_sets_completed = sets_completed
 
+        # Start the rest period (unless the whole workout just finished, or
+        # the user set rest to 0 to run sets back-to-back).
+        rest_seconds = st.session_state.get("rest_seconds", 0)
+
+        if rest_seconds > 0 and not workout_completed:
+            st.session_state.rest_until = now_ts + rest_seconds
+            st.session_state["_reps_at_rest_start"] = reps
+            st.session_state.resting = True
+            st.session_state.rest_remaining = rest_seconds
+
         try:
-            add_exercise(user_id, exercise, newly_completed * reps_per_set, newly_completed, time_taken)
+            # One row per completed set, so history can show a per-set
+            # breakdown rather than only a lumped total.
+            per_set_time = time_taken / newly_completed if newly_completed else time_taken
+
+            for _ in range(newly_completed):
+                add_exercise(user_id, exercise, reps_per_set, 1, per_set_time)
         except Exception as e:
             print(f"[metrics] failed to save exercise progress: {type(e).__name__}: {e}")
 

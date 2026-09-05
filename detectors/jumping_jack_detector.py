@@ -53,6 +53,16 @@ class JumpingJackDetector(BaseExercise):
         is_open   = arms_open   and legs_open
         is_closed = arms_closed and legs_closed
 
+        # Don't advance the rep state machine off estimated joints.
+        if not self.landmarks_visible(
+            landmarks,
+            self.LEFT_SHOULDER, self.RIGHT_SHOULDER,
+            self.LEFT_WRIST, self.RIGHT_WRIST,
+            self.LEFT_HIP, self.RIGHT_HIP,
+            self.LEFT_ANKLE, self.RIGHT_ANKLE,
+        ):
+            is_open = is_closed = False
+
         if is_open and self.stage != "open":
             self.stage = "open"
         if is_closed and self.stage == "open":

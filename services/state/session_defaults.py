@@ -17,12 +17,21 @@ def initial_session_defaults():
         "last_exercise_type": "Squats",
         "_reps_floor": 0,
         "_last_raw_detector_reps": 0,
+        "_reps_absorbed": 0,
+        "_reps_at_rest_start": 0,
+
+        # Rest between sets
+        "rest_seconds": 30,
+        "rest_until": 0.0,
+        "resting": False,
+        "rest_remaining": 0,
 
         # Workout plan (set before starting)
         "workout_started": False,
         "plan_exercise": "Squats",
         "plan_sets": 3,
         "plan_reps": 10,
+        "plan_rest": 30,
 
         # Angles (shared across exercises)
         "knee_angle": 0,

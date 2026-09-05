@@ -50,7 +50,13 @@ class MountainClimberDetector(BaseExercise):
         sh_mid_y  = (ls_y + rs_y) / 2
 
         # confirm plank: hips lower than PLANK_HIP_Y and roughly level with shoulders
-        in_plank = hip_mid_y < self.PLANK_HIP_Y
+        # -- and only if those joints are actually being tracked, not estimated.
+        in_plank = hip_mid_y < self.PLANK_HIP_Y and self.landmarks_visible(
+            landmarks,
+            self.LEFT_SHOULDER, self.RIGHT_SHOULDER,
+            self.LEFT_HIP, self.RIGHT_HIP,
+            self.LEFT_KNEE, self.RIGHT_KNEE,
+        )
 
         # ── knee drive detection ──────────────────────────────────────────────
         left_driven  = (lk_y < lh_y - self.KNEE_DRIVE_MARGIN)

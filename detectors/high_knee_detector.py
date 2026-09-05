@@ -43,6 +43,13 @@ class HighKneeDetector(BaseExercise):
         left_raised  = lk_y < lh_y - self.KNEE_RAISE_MARGIN
         right_raised = rk_y < rh_y - self.KNEE_RAISE_MARGIN
 
+        if not self.landmarks_visible(
+            landmarks,
+            self.LEFT_HIP, self.LEFT_KNEE, self.RIGHT_HIP, self.RIGHT_KNEE,
+        ):
+            # Don't count raises inferred from estimated joint positions.
+            left_raised = right_raised = False
+
         if left_raised and self._left_state == "down":
             self._left_state = "up"
             self._half_reps += 1

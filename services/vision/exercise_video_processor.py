@@ -36,7 +36,21 @@ class VideoProcessorClass(VideoProcessorBase):
 
     def _get_landmarker(self):
         if self._landmarker is None:
-            model_path = os.path.join(os.getcwd(), "ml_models", "pose_landmarker_full.task")
+            # Which pose model to use is configurable so you can trade
+            # accuracy for CPU without touching code:
+            #   POSE_MODEL=pose_landmarker_lite.task    (fastest)
+            #   POSE_MODEL=pose_landmarker_full.task    (default)
+            #   POSE_MODEL=pose_landmarker_heavy.task   (most accurate)
+            # Download the .task file into ml_models/ from Google's MediaPipe
+            # model page, then set POSE_MODEL in your .env.
+            model_name = os.getenv("POSE_MODEL", "pose_landmarker_full.task")
+            model_path = os.path.join(os.getcwd(), "ml_models", model_name)
+
+            if not os.path.exists(model_path):
+                fallback = os.path.join(os.getcwd(), "ml_models", "pose_landmarker_full.task")
+                print(f"[vision] POSE_MODEL {model_name!r} not found, falling back to pose_landmarker_full.task")
+                model_path = fallback
+
             base_option = python.BaseOptions(model_asset_path=model_path)
 
             options = vision.PoseLandmarkerOptions(
@@ -125,17 +139,48 @@ class VideoProcessorClass(VideoProcessorBase):
         )
 
     def _put_overlay_text(self, img, text):
-        h, _ = img.shape[:2]
+        h, w = img.shape[:2]
 
-        cv2.putText(
-            img,
-            text,
-            (20, h - 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2,
-        )
+        # Long status lines (e.g. "EXT: NEARLY EXTENDED | BACK: Neutral")
+        # overflowed the right edge of the frame at a fixed font scale and
+        # got visually cut off. Shrink the scale until the text fits, and
+        # fall back to dropping to two lines if it's still too wide.
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        margin = 20
+        max_width = w - (margin * 2)
+
+        scale = 1.0
+        thickness = 2
+
+        while scale > 0.4:
+            (text_w, _), _ = cv2.getTextSize(text, font, scale, thickness)
+
+            if text_w <= max_width:
+                break
+
+            scale -= 0.05
+
+        (text_w, text_h), _ = cv2.getTextSize(text, font, scale, thickness)
+
+        if text_w > max_width and "|" in text:
+            lines = [part.strip() for part in text.split("|")]
+        else:
+            lines = [text]
+
+        y = h - margin
+
+        for line in reversed(lines):
+            cv2.putText(
+                img,
+                line,
+                (margin, y),
+                font,
+                scale,
+                (0, 255, 0),
+                thickness,
+                cv2.LINE_AA,
+            )
+            y -= text_h + 10
 
     # ── per-exercise overlay dispatch ───────────────────────────────────────
     # Each entry maps an exercise name to the metric keys (in the order they

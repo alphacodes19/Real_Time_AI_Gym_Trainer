@@ -46,6 +46,17 @@ class ButtKickDetector(BaseExercise):
             self.get_point(landmarks, self.RIGHT_ANKLE),
         )
 
+        legs_tracked = self.landmarks_visible(
+            landmarks,
+            self.LEFT_HIP, self.LEFT_KNEE, self.LEFT_ANKLE,
+            self.RIGHT_HIP, self.RIGHT_KNEE, self.RIGHT_ANKLE,
+        )
+
+        if not legs_tracked:
+            # Joints are off-frame or occluded -- MediaPipe is guessing their
+            # position, so don't let that guess advance the rep count.
+            left_knee_angle = right_knee_angle = 180.0
+
         # left kick
         if left_knee_angle < self.KICK_THRESHOLD and self._left_state == "extended":
             self._left_state = "kicked"
