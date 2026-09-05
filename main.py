@@ -55,11 +55,11 @@ def live_progress_panel():
     )
 
     if st.session_state.get("workout_completed"):
-        st.success("🎉 Workout complete — all sets done!")
+        st.success("Workout complete — all sets done!")
     elif st.session_state.get("resting"):
         remaining = st.session_state.get("rest_remaining", 0)
         total = max(1, st.session_state.get("rest_seconds", 1))
-        st.info(f"😮‍💨 Rest — {remaining}s left")
+        st.info(f"Rest — {remaining}s left")
         st.progress(min(1.0, max(0.0, (total - remaining) / total)))
 
         if st.button("Skip rest", width="stretch", key="skip_rest_button"):
@@ -105,7 +105,7 @@ def live_coach_panel():
 
     if st.session_state.get("workout_completed"):
         st.success(
-            f"\U0001F389 **Workout complete!** "
+            f"**Workout complete!** "
             f"{st.session_state.get('sets_completed')} / {st.session_state.get('target_sets')} sets, "
             f"{st.session_state.get('reps')} total reps. "
             "Hit **End Workout** in the sidebar to finish, or keep going for extra reps."
@@ -134,18 +134,17 @@ def live_coach_panel():
 
     if st.session_state.get("coach_feedback"):
         st.markdown("")
-        st.success(f"\U0001F916 **Coach:** {st.session_state.coach_feedback}")
+        st.success(f"**Coach:** {st.session_state.coach_feedback}")
 
     if st.session_state.get("voice_pipeline_error"):
         st.caption(
-            f"\u26a0\ufe0f Voice coaching is temporarily unavailable: "
+            f"Voice coaching is temporarily unavailable: "
             f"{st.session_state.voice_pipeline_error}"
         )
 
 
 def main():
     st.set_page_config(
-        page_icon="🏋️‍♀️",
         page_title="AI Real-time GYM Coach",
         initial_sidebar_state="expanded",
         layout="centered"
@@ -178,10 +177,10 @@ def main():
     workout_started = st.session_state.get("workout_started", False)
     
     with st.sidebar:
-        st.title("🏋️‍♂️ Apna AI Coach")
+        st.title("Apna AI Coach")
 
         if st.session_state.username:
-            st.caption(f"👤 Logged in as {st.session_state.username}")
+            st.caption(f"Logged in as {st.session_state.username}")
 
         st.divider()
 
@@ -267,7 +266,7 @@ def main():
                 margin-top: 32px;
                 margin-bottom: 32px;
             ">
-                <h2 style="color:#ccc; margin-bottom:8px;">👈 Set your workout plan</h2>
+                <h2 style="color:#ccc; margin-bottom:8px;">Set your workout plan</h2>
                 <p style="font-size:1.05rem;">
                     Choose your exercise, sets and reps in the sidebar,<br>
                     then click <strong>Start Workout</strong> to activate the camera and AI coach.

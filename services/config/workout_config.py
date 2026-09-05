@@ -198,9 +198,22 @@ def get_rtc_configuration():
         }
     ]
 
+    # Credentials can come from the environment (local .env) or from
+    # st.secrets (Streamlit Community Cloud, which has no .env file).
     turn_url = os.getenv("TURN_URL")
     turn_username = os.getenv("TURN_USERNAME")
     turn_credential = os.getenv("TURN_CREDENTIAL")
+
+    if not turn_url:
+        try:
+            import streamlit as st
+
+            turn_url = st.secrets.get("TURN_URL", turn_url)
+            turn_username = st.secrets.get("TURN_USERNAME", turn_username)
+            turn_credential = st.secrets.get("TURN_CREDENTIAL", turn_credential)
+        except Exception:
+            # No secrets file configured -- fine, STUN-only.
+            pass
 
     if turn_url and turn_username and turn_credential:
         ice_servers.append(

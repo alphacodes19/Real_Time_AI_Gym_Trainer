@@ -1,0 +1,19 @@
+# Streamlit configuration.
+#
+# This folder is where Streamlit looks for per-project settings. It was empty
+# in the original project -- Streamlit works fine without it, it just falls
+# back to defaults (and to whatever theme the user's browser/OS prefers).
+#
+# Pinning the theme here makes the app look the same on every machine instead
+# of flipping to light mode for anyone whose system prefers it -- which matters
+# for this app, because the video overlay text is drawn in bright green and the
+# custom CSS is written for a dark background.
+#
+# Note: secrets.toml (if you ever add one) lives in this folder too and is
+# already gitignored.
+
+[theme]
+base = "dark"
+
+[browser]
+gatherUsageStats = false
