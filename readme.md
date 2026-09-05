@@ -1,4 +1,4 @@
-# 🏋️ Apna AI Coach — Real-time AI Gym Trainer
+# Real-time AI Gym Trainer
 
 A real-time workout tracker that watches you through your webcam, counts your reps,
 checks your form, and coaches you out loud while you train.
