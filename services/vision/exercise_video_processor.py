@@ -17,19 +17,13 @@ class VideoProcessorClass(VideoProcessorBase):
         self._latest_metrics = None
         self._exercise_type = "Squats"
 
-        model_path = os.path.join(os.getcwd(), "ml_models", "pose_landmarker_full.task")
-        base_option = python.BaseOptions(model_asset_path=model_path)
-
-        options = vision.PoseLandmarkerOptions(
-            base_options=base_option,
-            running_mode=vision.RunningMode.VIDEO,
-            min_pose_detection_confidence=0.7,
-            min_pose_presence_confidence=0.7,
-            min_tracking_confidence=0.7,
-            output_segmentation_masks=False
-        )
-
-        self._landmarker = vision.PoseLandmarker.create_from_options(options)
+        # The pose model is ~9MB and takes a second or more to load. This
+        # constructor runs while the WebRTC connection is still being
+        # negotiated, so loading it here delays the handshake and can push
+        # the browser into "Connection is taking longer than expected".
+        # We defer it to the first frame instead -- negotiation finishes
+        # immediately and the model loads while video is already flowing.
+        self._landmarker = None
 
         # Instantiate every registered detector once and keep it alive for the
         # whole session -- detectors carry rep/stage state between frames, so
@@ -39,6 +33,24 @@ class VideoProcessorClass(VideoProcessorBase):
         }
 
         self._frame_timestamps_ms = 0
+
+    def _get_landmarker(self):
+        if self._landmarker is None:
+            model_path = os.path.join(os.getcwd(), "ml_models", "pose_landmarker_full.task")
+            base_option = python.BaseOptions(model_asset_path=model_path)
+
+            options = vision.PoseLandmarkerOptions(
+                base_options=base_option,
+                running_mode=vision.RunningMode.VIDEO,
+                min_pose_detection_confidence=0.7,
+                min_pose_presence_confidence=0.7,
+                min_tracking_confidence=0.7,
+                output_segmentation_masks=False
+            )
+
+            self._landmarker = vision.PoseLandmarker.create_from_options(options)
+
+        return self._landmarker
 
     def set_latest_metrics(self, metrics):
         with self._lock:
@@ -195,7 +207,7 @@ class VideoProcessorClass(VideoProcessorBase):
         )
 
         self._frame_timestamps_ms += 30
-        result = self._landmarker.detect_for_video(mp_image, self._frame_timestamps_ms)
+        result = self._get_landmarker().detect_for_video(mp_image, self._frame_timestamps_ms)
 
         if result.pose_landmarks:
             landmarks = result.pose_landmarks[0]

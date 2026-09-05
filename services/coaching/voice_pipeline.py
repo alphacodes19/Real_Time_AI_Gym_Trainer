@@ -1,4 +1,5 @@
 import time
+import threading
 import streamlit as st
 
 
@@ -7,6 +8,11 @@ class VoicePipeline:
         self.llm = llm
         self.tts = tts
         self.last_spoken_at = 0
+        self.last_error = None
+
+        self._lock = threading.Lock()
+        self._busy = False
+        self._result = None
 
     def _find_form_issue(self, exercise, metrics):
         if "issue" in metrics:
@@ -146,32 +152,85 @@ class VoicePipeline:
         return None
 
     def process_event(self, event, exercise, metrics):
+        """NON-BLOCKING. Decides whether the coach should say something and,
+        if so, hands the work to a background thread. Returns immediately.
+
+        This is called from inside Streamlit's render loop, which reruns
+        roughly every 1.5s while the camera is live. The Groq LLM call and
+        the gTTS call are each network round-trips taking seconds -- doing
+        them inline froze the whole app (and the video feed) on every cycle.
+        Results are picked up later via poll().
+        """
         issue = self._find_form_issue(exercise, metrics)
 
         now = time.time()
 
-        is_major_issue = event in ["workout_started", "set_completed", "workout_completed"]
+        is_major_event = event in ["workout_started", "set_completed", "workout_completed"]
 
-        if not is_major_issue:
-            if not issue:
+        if not is_major_event:
+            if event == "ongoing_form_check":
+                # Correct a real issue fairly promptly, but don't nag -- and
+                # give plain encouragement sometimes even when form is fine,
+                # on a longer cooldown so it doesn't talk over every rep.
+                cooldown = 8 if issue else 20
+            else:
+                cooldown = 8
+
+            if now - self.last_spoken_at < cooldown:
                 return None
-            
-            if now - self.last_spoken_at < 5:
+
+        with self._lock:
+            # Only one utterance in flight at a time. Without this, a slow
+            # Groq response would let requests pile up and the coach would
+            # machine-gun several queued lines at once.
+            if self._busy:
                 return None
-            
+            self._busy = True
+
+        # Start the cooldown clock now (not on completion) so a slow network
+        # can't cause a burst of catch-up speech afterwards.
+        self.last_spoken_at = now
+
+        worker = threading.Thread(
+            target=self._generate,
+            args=(event, issue),
+            daemon=True,
+        )
+        worker.start()
+
+        return None
+
+    def _generate(self, event, issue):
+        """Runs on a background thread. MUST NOT touch st.session_state --
+        Streamlit session state is not available off the script thread."""
         try:
             text = self.llm.give_feedback(event, issue)
             voice = self.tts.speak(text)
-        except Exception:
-            # The Groq LLM call and gTTS both require network access; either
-            # can fail transiently (rate limit, brief outage, offline, etc.).
-            # Voice coaching is a nice-to-have, not core to the workout
-            # tracker, so we degrade silently instead of crashing the app.
-            return None
 
-        self.last_spoken_at = now
+            with self._lock:
+                self._result = (voice, text)
+                self.last_error = None
+        except Exception as e:
+            # Groq and gTTS both need network access; either can fail
+            # transiently (rate limit, outage, offline, bad API key).
+            # Voice coaching is a nice-to-have, so we log and degrade
+            # instead of taking down rep tracking.
+            print(f"[VoicePipeline] voice coaching failed ({type(e).__name__}): {e}")
 
-        return voice, text
+            with self._lock:
+                self.last_error = f"{type(e).__name__}: {e}"
+        finally:
+            with self._lock:
+                self._busy = False
+
+    def poll(self):
+        """Called from the Streamlit script thread. Returns (audio, text)
+        once a background generation has finished, else None."""
+        with self._lock:
+            result = self._result
+            self._result = None
+
+        return result
     
 
 def autoplay_audio(audio_bytes):

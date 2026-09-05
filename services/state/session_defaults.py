@@ -15,6 +15,8 @@ def initial_session_defaults():
         "last_saved_sets_completed": 0,
         "set_cycle_started_at": 0.0,
         "last_exercise_type": "Squats",
+        "_reps_floor": 0,
+        "_last_raw_detector_reps": 0,
 
         # Workout plan (set before starting)
         "workout_started": False,
@@ -53,7 +55,9 @@ def initial_session_defaults():
 
         # Voice coaching
         "audio_to_play": None,
+        "audio_started_at": 0.0,
         "coach_feedback": None,
+        "voice_pipeline_error": None,
 
         # Active workout state
         "exercise_type": "Squats",

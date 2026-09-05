@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 from services.auth.login_wall import render_login_wall
 from services.state.session_defaults import initial_session_defaults
-from services.config.workout_config import EXERCISE_OPTIONS, METRICS_FIELDS, METRICS_LABELS
+from services.config.workout_config import EXERCISE_OPTIONS, METRICS_FIELDS, METRICS_LABELS, get_rtc_configuration
 from services.ui.style_loader import load_css, inject_local_font, inject_webrtc_styles
 from services.persistence.exercise_repository import init_db
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from services.vision.exercise_video_processor import VideoProcessorClass
-from services.tracking.metrics import sync_metrics_update
+from services.tracking.metrics import sync_metrics_update, _safe_voice_event
 from services.persistence.exercise_repository import get_users_exercises
 from groq import Groq
 from services.coaching.llm import LLMCoach
@@ -80,19 +80,13 @@ def main():
                 st.session_state.target_sets = int(plan_sets)
                 st.session_state.reps_per_set = int(plan_reps)
                 st.session_state.reps = 0
+                st.session_state._reps_floor = 0
+                st.session_state._last_raw_detector_reps = 0
                 st.session_state.workout_started = True
                 st.session_state.set_cycle_started_at = time.time()
                 st.session_state.last_saved_sets_completed = 0
 
-                if st.session_state.voice_pipeline:
-                    result = st.session_state.voice_pipeline.process_event(
-                        event="workout_started",
-                        exercise=plan_exercise,
-                        metrics={}
-                    )
-                    
-                    if result:
-                        st.session_state.audio_to_play, st.session_state.coach_feedback = result
+                _safe_voice_event("workout_started", plan_exercise, {})
 
                 st.session_state.last_notified_sets_completed = 0
                 st.session_state.last_notified_workout_complete = False
@@ -109,14 +103,7 @@ def main():
             if end_session_button:
                 st.session_state.workout_started = False
                 
-                if st.session_state.voice_pipeline:
-                    result = st.session_state.voice_pipeline.process_event(
-                        event="workout_completed",
-                        exercise=exercise,
-                        metrics={}
-                    )
-                    if result:
-                        st.session_state.audio_to_play, st.session_state.coach_feedback = result
+                _safe_voice_event("workout_completed", exercise, {})
 
                 st.rerun()
 
@@ -157,14 +144,36 @@ def main():
     st.title("AI Real-time GYM Coach")
     st.markdown("#### Real-time pose detection with proactive AI voice coaching")
  
+    # Pick up any coaching line the background voice thread has finished
+    # generating since the last rerun.
+    voice_pipeline = st.session_state.get("voice_pipeline")
+
+    if voice_pipeline:
+        ready = voice_pipeline.poll()
+
+        if ready:
+            st.session_state.audio_to_play, st.session_state.coach_feedback = ready
+            st.session_state.audio_started_at = time.time()
+
+        st.session_state.voice_pipeline_error = voice_pipeline.last_error
+
+    # The page reruns every ~1.5s while the camera is live, but a spoken line
+    # is several seconds long. If we dropped the audio element on the very
+    # next rerun the clip would be cut off mid-sentence, so we keep rendering
+    # the same bytes (which keeps the element mounted and playing) until the
+    # clip has had time to finish.
     if st.session_state.get("audio_to_play"):
         autoplay_audio(st.session_state.audio_to_play)
-        st.session_state.audio_to_play = None
+
+        if time.time() - st.session_state.get("audio_started_at", 0) > 15:
+            st.session_state.audio_to_play = None
 
     if st.session_state.get("coach_feedback"):
         st.markdown("")
         st.success(f"🤖 **Coach:** {st.session_state.coach_feedback}")
-        st.session_state.coach_feedback = None
+
+    if st.session_state.get("voice_pipeline_error"):
+        st.caption(f"⚠️ Voice coaching is temporarily unavailable: {st.session_state.voice_pipeline_error}")
 
     if not workout_started:
         st.markdown(
@@ -192,22 +201,13 @@ def main():
             key="exercise-analysis",
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessorClass,
-            rtc_configuration={
-    "iceServers": [
-        {
-            "urls": "turn:openrelay.metered.ca:443",
-            "username": "openrelayproject",
-            "credential": "openrelayproject",
-        },
-        {
-            "urls": "turn:openrelay.metered.ca:443?transport=tcp",
-            "username": "openrelayproject",
-            "credential": "openrelayproject",
-        },
-    ]
-},
+            rtc_configuration=get_rtc_configuration(),
             media_stream_constraints={
-                "video": True,
+                "video": {
+                    "width": {"ideal": 640},
+                    "height": {"ideal": 480},
+                    "frameRate": {"ideal": 15, "max": 20},
+                },
                 "audio": False
             },
             async_processing=True

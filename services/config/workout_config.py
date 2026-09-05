@@ -168,3 +168,47 @@ PROMPT = (
     "- 'ongoing_form_check' + Form Issue -> A precise, supportive correction for the detected error.\n"
     "- 'ongoing_form_check' (No Issue) -> Brief, energetic words of encouragement.\n"
 )
+
+
+# ── WebRTC / ICE configuration ───────────────────────────────────────────────
+#
+# For a locally-run app (browser and Streamlit server on the same machine, or
+# on the same LAN) WebRTC connects directly using host candidates. STUN is a
+# cheap safety net; TURN is NOT needed and actively hurts here.
+#
+# The previous config listed only `openrelay.metered.ca` TURN servers. That
+# free public relay is no longer reliably available, and both the browser and
+# aiortc will sit waiting on TURN allocation attempts before giving up --
+# which is exactly the "Connection is taking longer than expected" stall.
+#
+# So: STUN-only by default. If you later deploy this behind a strict NAT or
+# on a cloud host where a relay really is required, supply your own TURN
+# credentials via environment variables (e.g. from metered.ca or Xirsys)
+# and they'll be appended automatically.
+
+def get_rtc_configuration():
+    import os
+
+    ice_servers = [
+        {
+            "urls": [
+                "stun:stun.l.google.com:19302",
+                "stun:stun1.l.google.com:19302",
+            ]
+        }
+    ]
+
+    turn_url = os.getenv("TURN_URL")
+    turn_username = os.getenv("TURN_USERNAME")
+    turn_credential = os.getenv("TURN_CREDENTIAL")
+
+    if turn_url and turn_username and turn_credential:
+        ice_servers.append(
+            {
+                "urls": turn_url,
+                "username": turn_username,
+                "credential": turn_credential,
+            }
+        )
+
+    return {"iceServers": ice_servers}
