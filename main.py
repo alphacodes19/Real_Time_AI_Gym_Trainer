@@ -89,6 +89,20 @@ def live_progress_panel():
 @st.fragment(run_every=1.5)
 def live_coach_panel():
     """Main area: picks up finished voice lines and plays them."""
+    ctx = st.session_state.get("webrtc_ctx")
+    processor = getattr(ctx, "video_processor", None) if ctx else None
+    vision_error = getattr(processor, "last_error", None) if processor else None
+
+    if vision_error:
+        st.error(
+            "**Pose detection isn't running**, so reps can't be counted.\n\n"
+            f"`{vision_error}`\n\n"
+            "If that mentions `MessageFactory` / `GetPrototype`, it's an incompatible "
+            "protobuf version. Fix it with:\n\n"
+            "```\npip install \"protobuf>=4.25.3,<5.0.0\"\n```\n"
+            "then restart the app."
+        )
+
     if st.session_state.get("workout_completed"):
         st.success(
             f"\U0001F389 **Workout complete!** "

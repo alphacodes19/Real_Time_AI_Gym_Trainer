@@ -1,6 +1,13 @@
 streamlit==1.54.0
 streamlit-webrtc==0.64.5
 mediapipe==0.10.14
+# MediaPipe 0.10.x declares `protobuf` with no upper bound, so a fresh install
+# can pull protobuf 5.x. Protobuf 5 removed MessageFactory.GetPrototype, which
+# MediaPipe's pose landmarker still calls -- the result is
+#   AttributeError: 'MessageFactory' object has no attribute 'GetPrototype'
+# and pose detection silently produces no landmarks (video shows, but no
+# skeleton and reps stay at 0). Pin to the 4.25.x line that MediaPipe works with.
+protobuf>=4.25.3,<5.0.0
 opencv-python-headless==4.10.0.84
 pandas==2.2.3
 groq>=0.12.0

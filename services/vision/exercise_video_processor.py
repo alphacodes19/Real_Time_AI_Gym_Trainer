@@ -16,6 +16,7 @@ class VideoProcessorClass(VideoProcessorBase):
         self._lock = threading.Lock()
         self._latest_metrics = None
         self._exercise_type = "Squats"
+        self.last_error = None
 
         # The pose model is ~9MB and takes a second or more to load. This
         # constructor runs while the WebRTC connection is still being
@@ -252,7 +253,38 @@ class VideoProcessorClass(VideoProcessorBase):
         )
 
         self._frame_timestamps_ms += 30
-        result = self._get_landmarker().detect_for_video(mp_image, self._frame_timestamps_ms)
+
+        try:
+            result = self._get_landmarker().detect_for_video(mp_image, self._frame_timestamps_ms)
+        except Exception as e:
+            # Pose detection can fail for environment reasons rather than
+            # anything the user did -- the classic one being an incompatible
+            # protobuf version, where MediaPipe raises
+            #   AttributeError: 'MessageFactory' object has no attribute 'GetPrototype'
+            # Previously this just meant "video shows, no skeleton, reps stuck
+            # at 0" with the real cause buried in the terminal. Record it so
+            # the UI can say what's actually wrong.
+            with self._lock:
+                if self.last_error is None:
+                    print(f"[vision] pose detection failed ({type(e).__name__}): {e}")
+
+                self.last_error = f"{type(e).__name__}: {e}"
+
+            cv2.putText(
+                image,
+                "POSE DETECTION UNAVAILABLE",
+                (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+            return av.VideoFrame.from_ndarray(image, format="bgr24")
+
+        with self._lock:
+            self.last_error = None
 
         if result.pose_landmarks:
             landmarks = result.pose_landmarks[0]
