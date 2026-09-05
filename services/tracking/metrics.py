@@ -94,7 +94,7 @@ def sync_metrics_update(context):
                 
     pose_detected = latest_metrics.get("pose_detected", True)
     
-    if not pose_detected and st.session_state.get("voice_pipeline"):
+    if not pose_detected and st.session_state.get("voice_pipeline") and not workout_completed:
         result = st.session_state.voice_pipeline.process_event(
             event="no_pose_detected",
             exercise=exercise,
@@ -104,7 +104,7 @@ def sync_metrics_update(context):
         if result:
             st.session_state.audio_to_play, st.session_state.coach_feedback = result
 
-    if st.session_state.get("voice_pipeline"):
+    if st.session_state.get("voice_pipeline") and not workout_completed and pose_detected:
         result = st.session_state.voice_pipeline.process_event(
             event="ongoing_form_check",
             exercise=exercise,

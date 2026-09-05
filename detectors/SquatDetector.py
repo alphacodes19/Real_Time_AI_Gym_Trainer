@@ -72,6 +72,7 @@ class SquatDetector(BaseExercise):
             "reps": self.reps,
             "knee_angle": int(knee_angle),
             "back_angle": int(back_angle),
-            "depth_status": depth_status
+            "depth_status": depth_status,
+            "body_alignment": "ROUNDED BACK" if back_angle < 120 else ("SLIGHT ROUND" if back_angle < 140 else "GOOD"),
         }
     

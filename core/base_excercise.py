@@ -35,3 +35,7 @@ class BaseExercise(ABC):
     @abstractmethod
     def reset(self):
         pass
+
+
+# Backward-compatible alias (many detectors import the misspelled name)
+BaseExcercise = BaseExercise
