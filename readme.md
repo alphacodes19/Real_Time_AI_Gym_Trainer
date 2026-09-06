@@ -1,4 +1,8 @@
-# Apna AI Coach — Real-time AI Gym Trainer
+# Real-time AI Gym Trainer
+
+Live Demo Link : https://realtimeaigymtrainer-fhexbcc3evrdkgzrnlunsu.streamlit.app/
+
+live Landing Page Link : https://real-time-ai-gym-trainer.vercel.app/
 
 A real-time workout tracker that watches you through your webcam, counts your reps,
 checks your form, and coaches you out loud while you train.
