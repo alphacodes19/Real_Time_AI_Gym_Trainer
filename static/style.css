@@ -19,12 +19,7 @@
 .block-container * {
   font-family: 'AdobeClean', sans-serif !important;
 }
-[data-testid="stIconMaterial"],
-.material-icons,
-.material-symbols-rounded,
-.material-symbols-outlined {
-  font-family: 'Material Symbols Rounded', 'Material Icons' !important;
-}
+
 /* =========================================================
    LAYOUT
 ========================================================= */

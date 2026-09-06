@@ -21,4 +21,9 @@ opencv-python-headless==4.10.0.84
 pandas==2.2.3
 groq>=0.12.0
 gtts==2.5.3
+# Offline speech fallback -- drives the OS speech engine (SAPI5 on Windows,
+# NSSpeechSynthesizer on macOS, espeak on Linux) so voice coaching still works
+# with no internet. Optional: the app runs fine without it, just silent when
+# gTTS can't be reached.
+pyttsx3==2.98
 python-dotenv==1.2.2

@@ -1,8 +1,4 @@
-# Real-time AI Gym Trainer
-
-Live Demo Link : https://realtimeaigymtrainer-fhexbcc3evrdkgzrnlunsu.streamlit.app/
-
-Live Landing Page : https://real-time-ai-gym-trainer.vercel.app/
+# Apna AI Coach — Real-time AI Gym Trainer
 
 A real-time workout tracker that watches you through your webcam, counts your reps,
 checks your form, and coaches you out loud while you train.
@@ -37,7 +33,7 @@ coaching voice comes from an **LLM + text-to-speech** pipeline — all wrapped i
 
 ## Requirements
 
-> **⚠️ Python 3.9 – 3.12 (3.12 recommended).**
+> **Python 3.9 – 3.12 (3.12 recommended).**
 > `mediapipe==0.10.14` only publishes wheels for CPython 3.9–3.12. On Python 3.13 or
 > 3.14 the install fails with
 > `ERROR: Could not find a version that satisfies the requirement mediapipe==0.10.14`.
@@ -224,7 +220,7 @@ TURN credentials configured. Check the browser console (F12) for the real ICE er
 
 **No voice coaching**
 
-The app shows a `⚠️ Voice coaching is temporarily unavailable` caption with the actual
+The app shows a `Voice coaching is temporarily unavailable` caption with the actual
 error. Usually a missing or invalid `GROQ_API_KEY`. Rep counting keeps working
 regardless — voice failures are non-fatal by design.
 

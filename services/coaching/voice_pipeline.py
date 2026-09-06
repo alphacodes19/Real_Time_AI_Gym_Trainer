@@ -200,28 +200,108 @@ class VoicePipeline:
 
         return None
 
+    # Canned coaching lines used when the LLM can't be reached. Not as varied
+    # as the generated ones, but they mean the coach still speaks with no
+    # internet at all rather than going silent.
+    _FALLBACK_LINES = {
+        "workout_started": "Let's go. Get into position and start your first set.",
+        "set_completed": "Nice work. Take your rest, then go again.",
+        "workout_completed": "That's the workout done. Well done.",
+        "no_pose_detected": "I can't see you. Step back into the camera frame.",
+        "ongoing_form_check": "Keep going. Stay controlled and keep your form tight.",
+    }
+
+    def _fallback_text(self, event, issue):
+        if issue:
+            # The issue strings are written in the third person because they're
+            # normally an instruction TO the LLM ("The user's back is rounding").
+            # Spoken straight at the person that sounds wrong, so flip them to
+            # second person and drop the coaching aside after the dash.
+            text = issue.split(" -- ")[0].split(" — ")[0].strip()
+
+            for old, new in (
+                ("The user's", "Your"),
+                ("The user isn't", "You aren't"),
+                ("The user is not", "You are not"),
+                ("The user does not", "You don't"),
+                ("The user doesn't", "You don't"),
+                ("The user is", "You're"),
+                ("The user", "You"),
+            ):
+                if text.startswith(old):
+                    text = new + text[len(old):]
+                    break
+
+            # Third-person possessives left over mid-sentence
+            # ("You're swinging their torso" -> "your torso").
+            text = text.replace(" their ", " your ").replace(" them ", " you ")
+
+            return text
+
+        return self._FALLBACK_LINES.get(event, "Keep going, you're doing well.")
+
     def _generate(self, event, issue):
         """Runs on a background thread. MUST NOT touch st.session_state --
         Streamlit session state is not available off the script thread."""
+        last_exception = None
+
+        # Retry once on transient failures. A brief connectivity blip
+        # (APIConnectionError from Groq, or gTTS failing to reach Google)
+        # would otherwise silently drop that coaching line entirely. This
+        # runs on a background thread, so the short wait costs the user
+        # nothing -- the video and rep counting are unaffected.
+        for attempt in range(2):
+            try:
+                text = self.llm.give_feedback(event, issue)
+                voice = self.tts.speak(text)
+
+                with self._lock:
+                    self._result = (voice, text)
+                    self.last_error = None
+                    self._busy = False
+
+                return
+            except Exception as e:
+                last_exception = e
+
+                if attempt == 0:
+                    time.sleep(1.5)
+
+        # The LLM is unreachable. Fall back to a canned line and try to speak
+        # it anyway -- TextToSpeech has its own offline engine fallback, so
+        # this can still produce audio with no internet at all.
         try:
-            text = self.llm.give_feedback(event, issue)
+            text = self._fallback_text(event, issue)
             voice = self.tts.speak(text)
 
-            with self._lock:
-                self._result = (voice, text)
-                self.last_error = None
-        except Exception as e:
-            # Groq and gTTS both need network access; either can fail
-            # transiently (rate limit, outage, offline, bad API key).
-            # Voice coaching is a nice-to-have, so we log and degrade
-            # instead of taking down rep tracking.
-            print(f"[VoicePipeline] voice coaching failed ({type(e).__name__}): {e}")
+            if voice:
+                print(f"[VoicePipeline] LLM unreachable, used offline coaching line")
 
-            with self._lock:
-                self.last_error = f"{type(e).__name__}: {e}"
-        finally:
-            with self._lock:
-                self._busy = False
+                with self._lock:
+                    self._result = (voice, text)
+                    self.last_error = None
+                    self._busy = False
+
+                return
+        except Exception as e:
+            print(f"[VoicePipeline] offline fallback also failed ({type(e).__name__}): {e}")
+
+        # Both attempts failed. Voice coaching is a nice-to-have, so we log
+        # and degrade instead of taking down rep tracking.
+        print(f"[VoicePipeline] voice coaching failed ({type(last_exception).__name__}): {last_exception}")
+
+        message = f"{type(last_exception).__name__}: {last_exception}"
+
+        if "APIConnectionError" in type(last_exception).__name__ or "Connection" in str(last_exception):
+            message = (
+                "couldn't reach the coaching service (network issue). "
+                "Rep counting is unaffected; the coach will resume automatically "
+                "once the connection is back."
+            )
+
+        with self._lock:
+            self.last_error = message
+            self._busy = False
 
     def poll(self):
         """Called from the Streamlit script thread. Returns (audio, text)
@@ -238,5 +318,9 @@ def autoplay_audio(audio_bytes):
         return
     
     st.markdown("<style>[data-testid='stAudio'] {display: none;}</style>", unsafe_allow_html=True)
-    
-    st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+
+    # gTTS returns MP3; the offline pyttsx3 fallback returns WAV. Sniff the
+    # RIFF header so the browser is told the right type either way.
+    audio_format = "audio/wav" if audio_bytes[:4] == b"RIFF" else "audio/mp3"
+
+    st.audio(audio_bytes, format=audio_format, autoplay=True)
